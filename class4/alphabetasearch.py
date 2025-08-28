@@ -1,106 +1,186 @@
-class Node:
-    def __init__(self, name, children=None, value=None):
-        self.name = name
-        self.children = children if children is not None else []
-        self.value = value
+import logging
+import sys
 
-def evaluate(node):
-    return node.value
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
-def is_terminal(node):
-    return node.value is not None
+# Sample game tree represented as a nested list structure
+# Each leaf node represents a utility value (score)
+tree = [[[5, 1, 2], [8, -8, -9]], [[9, 4, 5], [-3, 4, 3]]]
 
-def get_children(node):
-    return node.children
+# Starting depth of the tree (0 = root)
+root = 0
 
-def alpha_beta_pruning(node, depth, alpha, beta, maximizing_player):
-    id = ""+node.name+str(depth)+str(alpha)+str(beta)+str(maximizing_player)
-    print(f"called alpha_beta_pruning({node.name}, {depth}, {alpha}, {beta}, {maximizing_player})")
-    if depth == 0 or is_terminal(node):
-        print(f"fromm first check ::{depth}, {node.name}")
-        return evaluate(node)
+# Counter for pruned branches
+pruned = 0
+
+# Enable/disable debug prints
+DEBUG = True
+
+# Function to print indented debug messages based on depth
+def debug_print(depth, message):
+    if DEBUG:
+        indent = "  " * depth
+        logging.info(f"{indent}{message}")
+
+def children(branch, depth, alpha, beta):
+    """
+    Implements the Alpha-Beta pruning algorithm on a game tree.
     
-    if maximizing_player:
-        max_eval = float('-inf')
-        for child in get_children(node):
-            eval = alpha_beta_pruning(child, depth-1, alpha, beta, False)
-            print(f"returned eval for  {id} == {eval}")
-            print(f"current alpha before max comparison for  {id} == {alpha}")
-            max_eval = max(max_eval, eval)
-            alpha = max(alpha, eval)
-            print(f"setting alpha before min comparison for  {id}")
-            print(f"current alpha after max comparison for  {id} == {alpha}")
-            print(f"current beta after max comparison for  {id} == {beta}")
-            if beta <= alpha:
-                print(f"Pruning .. after max comparison for  {id} == {alpha}")
-                break  # Beta cut-off
-        return max_eval
-    else:
-        min_eval = float('inf')
-        for child in get_children(node):
-            eval = alpha_beta_pruning(child, depth-1, alpha, beta, True)
-            print(f"returned eval for  {id} == {eval}")
-            print(f"current beta  before min comparison for  {id} == {beta}")
-            min_eval = min(min_eval, eval)
+    Args:
+        branch: Current branch/node in the game tree
+        depth: Current depth in the tree (0 = root)
+        alpha: Best value for MAX player found so far
+        beta: Best value for MIN player found so far
+    
+    Returns:
+        tuple: Updated (alpha, beta) values after processing this branch
+    """
+    global tree
+    global root
+    global pruned
+    i = 0  # Index to track position in the branch list
+    
+    # Print node information
+    node_type = "MAX" if depth % 2 == 0 else "MIN"
+    debug_print(depth, f"Entering {node_type} node at depth {depth}")
+    debug_print(depth, f"Initial α={alpha}, β={beta}")
+    debug_print(depth, f"Node value: {branch}")
+    
+    # Iterate through each child of the current branch
+    for child_index, child in enumerate(branch):
+        debug_print(depth, f"Examining child {child_index}: {child}")
+        
+        # If child is a list, it's an internal node - recurse deeper
+        if isinstance(child, list):
+            debug_print(depth, f"Child {child_index} is an internal node, recursing deeper...")
             
-            beta = min(beta, eval)
-            print(f"setting beta before min comparison for  {id}")
-            print(f"current beta after min comparison for  {id} == {beta}")
-            print(f"current alpha after min comparison for  {id} == {alpha}")
-            if beta <= alpha:
-                print(f"Pruning .. after min comparison for  {id} == {alpha}")
-                break  # Alpha cut-off
-        return min_eval
+            # Recursive call to process child branch
+            old_alpha, old_beta = alpha, beta
+            nalpha, nbeta = children(child, depth + 1, alpha, beta)
+            debug_print(depth, f"Returned from recursion with α={nalpha}, β={nbeta}")
+            
+            # Update alpha/beta based on depth (MIN or MAX level)
+            if depth % 2 == 1:  # MIN level (odd depth)
+                old_beta = beta
+                beta = min(beta, nalpha)  # MIN player wants to minimize
+                if beta != old_beta:
+                    debug_print(depth, f"MIN node: Updated β from {old_beta} to {beta}")
+            else:  # MAX level (even depth)
+                old_alpha = alpha
+                alpha = max(alpha, nbeta)  # MAX player wants to maximize
+                if alpha != old_alpha:
+                    debug_print(depth, f"MAX node: Updated α from {old_alpha} to {alpha}")
+            
+            # Update the branch with the appropriate value (alpha for MAX, beta for MIN)
+            old_value = branch[i] if i < len(branch) else "None"
+            branch[i] = alpha if depth % 2 == 0 else beta
+            debug_print(depth, f"Updated branch[{i}] from {old_value} to {branch[i]}")
+            i += 1
+        else:
+            # If child is a leaf node (actual value)
+            debug_print(depth, f"Child {child_index} is a leaf node with value {child}")
+            
+            if depth % 2 == 0:  # MAX level
+                old_alpha = alpha
+                if alpha < child:
+                    alpha = child
+                    debug_print(depth, f"MAX node: Leaf value {child} > α={old_alpha}, updating α to {alpha}")
+                else:
+                    debug_print(depth, f"MAX node: Leaf value {child} <= α={alpha}, no update")
+            
+            if depth % 2 == 1:  # MIN level
+                old_beta = beta
+                if beta > child:
+                    beta = child
+                    debug_print(depth, f"MIN node: Leaf value {child} < β={old_beta}, updating β to {beta}")
+                else:
+                    debug_print(depth, f"MIN node: Leaf value {child} >= β={beta}, no update")
+        
+        # Alpha-Beta pruning condition: if alpha >= beta, prune the remaining branches
+        if alpha >= beta:
+            pruned += 1  # Count pruned branches
+            debug_print(depth, f"PRUNING! α={alpha} >= β={beta}")
+            debug_print(depth, f"Skipping remaining children: {branch[i+1:]}")
+            break  # Skip remaining children
+    
+    # If we're back at the root, update the final result
+    if depth == root:
+        old_tree = tree
+        tree = alpha if root == 0 else beta
+        debug_print(depth, f"Back at root. Final result: {tree}")
+    
+    debug_print(depth, f"Exiting node at depth {depth} with final α={alpha}, β={beta}")
+    debug_print(depth, "")
+    
+    # Return updated alpha and beta values
+    return alpha, beta
 
-# Create the game tree
-D = Node('D', value=3)
-E = Node('E', value=5)
-F = Node('F', value=6)
-G = Node('G', value=9)
-H = Node('H', value=1)
-I = Node('I', value=2)
+print("Ahmed Shaikh 323")
 
-B = Node('B', children=[D, E, F])
-C = Node('C', children=[G, H, I])
+def alphabeta(debug_mode=True):
+    """
+    Main function to start the Alpha-Beta pruning algorithm.
+    Initializes alpha to negative infinity and beta to positive infinity.
+    Prints the final result and number of pruned branches.
+    
+    Args:
+        debug_mode: Whether to print detailed debug information
+    """
+    global tree
+    global pruned
+    global root
+    global DEBUG
+    
+    # Set debug mode
+    DEBUG = debug_mode
+    
+    # Print initial tree
+    if DEBUG:
+        logging.info("\n==== ALPHA-BETA PRUNING ALGORITHM ====\n")
+        logging.info(f"Initial tree: {tree}")
+        logging.info(f"Starting with α=-∞, β=+∞\n")
+    
+    # Run the algorithm
+    alpha, beta = children(tree, root, -float('inf'), float('inf'))
+    
+    # Print results
+    logging.info("\n==== RESULTS ====\n")
+    logging.info(f"Final (alpha, beta): {alpha}, {beta}")
+    logging.info(f"Result: {tree}")
+    logging.info(f"Branches pruned: {pruned}")
+    
+    # Print a visual representation of the pruning efficiency
+    if DEBUG:
+        logging.info("\n==== PRUNING EFFICIENCY ====\n")
+        total_nodes = count_nodes(tree)
+        logging.info(f"Total nodes in tree: {total_nodes}")
+        logging.info(f"Nodes pruned: {pruned}")
+        logging.info(f"Efficiency: {pruned/total_nodes:.2%} of branches pruned")
+    
+    return alpha, beta, tree, pruned
 
-A = Node('A', children=[B, C])
 
-# Run the alpha-beta pruning algorithm
-maximizing_player = True
-initial_alpha = float('-inf')
-initial_beta = float('inf')
-depth = 3  # Maximum depth of the tree
+def count_nodes(branch):
+    """Helper function to count the total number of nodes in the tree"""
+    if not isinstance(branch, list):
+        return 1
+    
+    count = 1  # Count this node
+    for child in branch:
+        count += count_nodes(child)
+    
+    return count
 
-optimal_value = alpha_beta_pruning(A, depth, initial_alpha, initial_beta, maximizing_player)
-print(f"The optimal value is: {optimal_value}")
-
-
-
-
-# Based on the execution trace, 3 is the optimal value because of how the minimax algorithm with alpha-beta pruning works. Let me explain step by step:
-
-# Tree Structure & Player Roles
-# A (root): Maximizing player (wants highest value)
-# B, C (level 1): Minimizing players (want lowest value)
-# D,E,F,G,H,I (leaves): Terminal nodes with values [3,5,6,9,1,2]
-# Execution Analysis
-# Step 1: Evaluating Subtree B
-# B is a minimizing node with children D(3), E(5), F(6)
-# B chooses the minimum: min(3,5,6) = 3
-# A's alpha becomes 3
-# Step 2: Evaluating Subtree C
-# C is a minimizing node with children G(9), H(1), I(2)
-# C evaluates G(9) first → beta becomes 9
-# C evaluates H(1) next → beta becomes min(9,1) = 1
-# Pruning occurs: Since beta(1) ≤ alpha(3), node I is pruned
-# C returns 1
-# Step 3: A's Final Decision
-# A (maximizing) compares: max(3, 1) = 3
-# A chooses the path through B, which gives value 3
-# Why 3 is Optimal
-# The algorithm proves that 3 is the best achievable value for the maximizing player because:
-
-# From subtree B: The minimizing opponent will choose 3 (best they can do is limit max player to 3)
-# From subtree C: The minimizing opponent will choose 1 (even worse for max player)
-# Rational choice: The maximizing player picks B's path (value 3) over C's path (value 1)
-# The alpha-beta pruning correctly eliminated exploring node I because it was already proven that C's subtree couldn't offer anything better than what B already guaranteed.
+if __name__ == "__main__":
+    # Run with debug prints
+    alphabeta(debug_mode=True)
+    
+    # Uncomment to run without debug prints
+    # alphabeta(debug_mode=False)

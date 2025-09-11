@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Java Exam Preparation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .question-card {
+            margin-bottom: 20px;
+            border-left: 5px solid #007bff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .frequency-badge {
+            font-size: 0.9rem;
+            margin-right: 10px;
+            background-color: #0d6efd;
+        }
+        .answer-container {
+            display: none;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-top: 10px;
+            border: 1px solid #dee2e6;
+        }
+        .detail-btn {
+            margin-top: 10px;
+        }
+        .search-container {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .years-appeared {
+            font-style: italic;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+        .question-number {
+            font-weight: bold;
+            margin-right: 10px;
+            color: #0d6efd;
+        }
+        .card-header {
+            background-color: #e7f1ff;
+            font-weight: 500;
+        }
+        .header-container {
+            background-color: #0d6efd;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            border-radius: 10px;
+        }
+        .stats-container {
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stats-card {
+            text-align: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+        .stats-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #0d6efd;
+        }
+        .floating-top-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #0d6efd;
+            color: white;
+            text-align: center;
+            line-height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loadingSpinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <a href="#top" class="floating-top-btn" title="Go to top">
+        <i class="bi bi-arrow-up"></i>
+    </a>
+
+    <div class="container" id="top">
+        <div class="header-container text-center">
+            <h1 class="mb-3">Enterprise Java Exam Preparation</h1>
+            <p class="lead">Questions sorted by frequency of appearance in previous papers</p>
+        </div>
+        
+        <div class="stats-container mb-4">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <i class="bi bi-file-text"></i>
+                        </div>
+                        <h4 id="totalPapers">4</h4>
+                        <p>Papers Analyzed</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <i class="bi bi-question-circle"></i>
+                        </div>
+                        <h4 id="totalQuestions">Loading...</h4>
+                        <p>Total Questions</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <i class="bi bi-star"></i>
+                        </div>
+                        <h4 id="highFreq">Loading...</h4>
+                        <p>Most Frequent Questions</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <i class="bi bi-calendar-check"></i>
+                        </div>
+                        <h4>2018-2022</h4>
+                        <p>Year Range</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="search-container">
+            <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Search for topics or keywords...">
+            <div class="filter-buttons mt-3">
+                <button class="btn btn-outline-primary" data-year="all">All Years</button>
+                <button class="btn btn-outline-primary" data-year="2018">2018</button>
+                <button class="btn btn-outline-primary" data-year="2019">2019</button>
+                <button class="btn btn-outline-primary" data-year="2022">2022</button>
+                <button class="btn btn-outline-success ms-3" id="showAllAnswers">Show All Answers</button>
+                <button class="btn btn-outline-danger ms-2" id="hideAllAnswers">Hide All Answers</button>
+            </div>
+        </div>
+        
+        <div id="questions-container">
+            <!-- Questions will be loaded here dynamically -->
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading questions...</span>
+                </div>
+                <p class="mt-3">Loading exam questions...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch the improved exam prep guide
+            fetch('improved_exam_prep_guide.html')
+                .then(response => response.text())
+                .then(html => {
+                    // Extract the questions container content
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const questionsContainer = doc.getElementById('questions-container');
+                    
+                    if (questionsContainer) {
+                        document.getElementById('questions-container').innerHTML = questionsContainer.innerHTML;
+                        
+                        // Count questions
+                        const questionCards = document.querySelectorAll('.question-card');
+                        document.getElementById('totalQuestions').textContent = questionCards.length;
+                        
+                        // Find highest frequency
+                        let maxFreq = 0;
+                        document.querySelectorAll('.frequency-badge').forEach(badge => {
+                            const freq = parseInt(badge.textContent);
+                            if (freq > maxFreq) maxFreq = freq;
+                        });
+                        document.getElementById('highFreq').textContent = maxFreq + ' times';
+                        
+                        // Set up event handlers
+                        setupEventHandlers();
+                    }
+                    
+                    // Hide loading spinner
+                    document.getElementById('loadingSpinner').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error loading exam prep guide:', error);
+                    document.getElementById('questions-container').innerHTML = '<div class="alert alert-danger">Failed to load questions. Please refresh the page.</div>';
+                    document.getElementById('loadingSpinner').style.display = 'none';
+                });
+                
+            function setupEventHandlers() {
+                // Toggle answer visibility
+                const toggleButtons = document.querySelectorAll('.toggle-answer');
+                toggleButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const answerContainer = this.nextElementSibling;
+                        if (answerContainer.style.display === 'block') {
+                            answerContainer.style.display = 'none';
+                            this.textContent = 'Show Answer';
+                        } else {
+                            answerContainer.style.display = 'block';
+                            this.textContent = 'Hide Answer';
+                        }
+                    });
+                });
+                
+                // Search functionality
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', filterQuestions);
+                
+                // Year filter buttons
+                const yearButtons = document.querySelectorAll('[data-year]');
+                yearButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        // Remove active class from all buttons
+                        yearButtons.forEach(btn => btn.classList.remove('active', 'btn-primary', 'text-white'));
+                        // Add active class to clicked button
+                        this.classList.add('active', 'btn-primary', 'text-white');
+                        
+                        filterQuestions();
+                    });
+                });
+                
+                // Show/Hide all answers
+                document.getElementById('showAllAnswers').addEventListener('click', function() {
+                    document.querySelectorAll('.answer-container').forEach(container => {
+                        container.style.display = 'block';
+                    });
+                    document.querySelectorAll('.toggle-answer').forEach(button => {
+                        button.textContent = 'Hide Answer';
+                    });
+                });
+                
+                document.getElementById('hideAllAnswers').addEventListener('click', function() {
+                    document.querySelectorAll('.answer-container').forEach(container => {
+                        container.style.display = 'none';
+                    });
+                    document.querySelectorAll('.toggle-answer').forEach(button => {
+                        button.textContent = 'Show Answer';
+                    });
+                });
+            }
+            
+            function filterQuestions() {
+                const searchText = searchInput.value.toLowerCase();
+                const activeYearBtn = document.querySelector('[data-year].active');
+                const yearFilter = activeYearBtn ? activeYearBtn.getAttribute('data-year') : 'all';
+                
+                const questionCards = document.querySelectorAll('.question-card');
+                
+                questionCards.forEach(card => {
+                    const questionText = card.querySelector('.card-header').textContent.toLowerCase();
+                    const answerContainer = card.querySelector('.answer-container');
+                    const answerText = answerContainer ? answerContainer.textContent.toLowerCase() : '';
+                    const cardYears = card.getAttribute('data-years').split(',');
+                    
+                    // Check if card matches search text
+                    const matchesSearch = searchText === '' || 
+                                         questionText.includes(searchText) || 
+                                         answerText.includes(searchText);
+                    
+                    // Check if card matches year filter
+                    const matchesYear = yearFilter === 'all' || 
+                                       cardYears.some(year => year.includes(yearFilter));
+                    
+                    if (matchesSearch && matchesYear) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Initialize with "all" filter active
+            document.querySelector('[data-year="all"]').classList.add('active', 'btn-primary', 'text-white');
+        });
+    </script>
+    
+    <footer class="mt-5 py-3 text-center">
+        <div class="container">
+            <p class="text-muted">Enterprise Java Exam Preparation Guide</p>
+        </div>
+    </footer>
+</body>
+</html>

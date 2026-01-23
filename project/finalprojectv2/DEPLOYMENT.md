@@ -26,6 +26,9 @@ This guide provides step-by-step instructions to deploy the Sentiment Analysis C
     *   Select **Drivers** (Python).
     *   Copy the connection string. It will look like:
         `mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority`
+    *   **CRITICAL STEP:** You must add the database name to this string. Insert it between the `/` and the `?`.
+        *   Incorrect: `...mongodb.net/?...`
+        *   Correct: `...mongodb.net/sentiment_db?`
     *   Replace `<password>` with the password you created in the previous step. **Save this string for Step 2.**
 
 ---

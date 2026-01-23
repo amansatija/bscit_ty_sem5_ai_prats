@@ -28,8 +28,14 @@ jwt = JWTManager(app)
 # Sentiment analysis service is initialized in sentimentAnalysisService.py
 
 # Collections
-users_collection = mongo.db.users
-chats_collection = mongo.db.chats
+try:
+    users_collection = mongo.db.users
+    chats_collection = mongo.db.chats
+except AttributeError:
+    # This usually happens if the MONGO_URI is missing the database name
+    print("Error: MongoDB database not selected. Please ensure your MONGO_URI includes the database name.")
+    print("Example: mongodb+srv://<user>:<password>@cluster.mongodb.net/<database_name>?retryWrites=true&w=majority")
+    raise ValueError("MONGO_URI missing database name")
 
 
 

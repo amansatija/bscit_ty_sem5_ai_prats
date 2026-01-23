@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { UserPlus, User, Mail, Lock, AlertCircle } from 'lucide-react';
+import api from '../api/axios';
+import { UserPlus, User, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import './Auth.css';
 
 function Register({ onRegister }) {
@@ -13,6 +13,8 @@ function Register({ onRegister }) {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -35,7 +37,7 @@ function Register({ onRegister }) {
     }
 
     try {
-      const response = await axios.post('/api/register', {
+      const response = await api.post('/api/register', {
         username: formData.username,
         email: formData.email,
         password: formData.password
@@ -102,16 +104,24 @@ function Register({ onRegister }) {
               <Lock size={20} />
               Password
             </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Create a password"
-              required
-              minLength="6"
-            />
+            <div className="password-input-container">
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Create a password"
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           <div className="form-group">
@@ -119,16 +129,24 @@ function Register({ onRegister }) {
               <Lock size={20} />
               Confirm Password
             </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              placeholder="Confirm your password"
-              required
-              minLength="6"
-            />
+            <div className="password-input-container">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirm your password"
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="auth-button" disabled={loading}>

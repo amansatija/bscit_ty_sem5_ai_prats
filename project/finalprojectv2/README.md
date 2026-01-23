@@ -37,6 +37,10 @@ A full-stack web application that analyzes the sentiment of text input using NLT
 - MongoDB (local or cloud instance)
 - npm or yarn
 
+## Deployment
+
+For step-by-step instructions on how to deploy this application to production (MongoDB Atlas, Render, Vercel), please refer to [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ## Installation
 
 ### 1. Clone the Repository
@@ -51,7 +55,7 @@ cd /path/to/finalprojectv2
 # Navigate to backend directory
 cd backend
 
-# Create virtual environment
+# Create virtual environment :PS : note : this step needs to be done only once while initialisng the app .. !!
 python3 -m venv venv
 
 # Activate virtual environment

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { Send, LogOut, History, Trash2, User, AlertCircle } from 'lucide-react';
 import './Chat.css';
 
@@ -20,15 +20,6 @@ function Chat({ user, onLogout }) {
     scrollToBottom();
   }, [messages]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    };
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
@@ -45,10 +36,9 @@ function Chat({ user, onLogout }) {
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         '/api/analyze',
-        { text: inputText },
-        getAuthHeaders()
+        { text: inputText }
       );
 
       // Add bot response
@@ -71,7 +61,7 @@ function Chat({ user, onLogout }) {
 
   const loadHistory = async () => {
     try {
-      const response = await axios.get('/api/history', getAuthHeaders());
+      const response = await api.get('/api/history');
       setHistory(response.data.chats);
       setShowHistory(true);
     } catch (err) {
@@ -81,7 +71,7 @@ function Chat({ user, onLogout }) {
 
   const deleteHistoryItem = async (chatId) => {
     try {
-      await axios.delete(`/api/history/${chatId}`, getAuthHeaders());
+      await api.delete(`/api/history/${chatId}`);
       setHistory(prev => prev.filter(item => item._id !== chatId));
     } catch (err) {
       setError('Failed to delete chat');

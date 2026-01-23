@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
+import api from '../api/axios';
+import { LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import './Auth.css';
 
 function Login({ onLogin }) {
@@ -11,6 +11,7 @@ function Login({ onLogin }) {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -26,7 +27,7 @@ function Login({ onLogin }) {
     setError('');
 
     try {
-      const response = await axios.post('/api/login', formData);
+      const response = await api.post('/api/login', formData);
       onLogin(response.data.access_token, response.data.user);
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
@@ -73,15 +74,24 @@ function Login({ onLogin }) {
               <Lock size={20} />
               Password
             </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Enter your password"
-              required
-            />
+            <div className="password-input-container">
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Enter your password"
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="auth-button" disabled={loading}>

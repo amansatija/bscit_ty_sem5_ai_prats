@@ -106,6 +106,23 @@ def test_analyzer_comparison():
         print(f"❌ Analyzer comparison failed: {e}")
         return False
 
+
+def test_llm_analysis():
+    """Optionally test LLM sentiment if API key is configured"""
+    print("\n🤖 Testing LLM Analysis (if configured)...")
+    try:
+        # skip if neither key is present
+        if not (os.getenv('OPENAI_API_KEY') or os.getenv('OPENROUTER_API_KEY')):
+            print("⚠️ No LLM API key set, skipping LLM test")
+            return True
+        text = "I really enjoyed this strong performance, excellent cinematography."
+        result = sentiment_service.analyze_sentiment(text, use_llm=True)
+        print(f"✅ LLM analysis returned: {result.get('label')} (confidence {result.get('confidence')})")
+        return True
+    except Exception as e:
+        print(f"❌ LLM analysis failed: {e}")
+        return False
+
 def test_samples_functionality():
     """Test the test samples functionality"""
     print("\n🎯 Testing Sample Analysis...")
@@ -133,6 +150,7 @@ def main():
         ("Hybrid Analysis", test_hybrid_analysis),
         ("Detailed Analysis", test_detailed_analysis),
         ("Analyzer Comparison", test_analyzer_comparison),
+        ("LLM Analysis", test_llm_analysis),
         ("Test Samples", test_samples_functionality)
     ]
     

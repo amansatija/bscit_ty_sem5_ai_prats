@@ -5,6 +5,7 @@ import './Chat.css';
 
 function Chat({ user, onLogout }) {
   const [inputText, setInputText] = useState('');
+  const [analyzer, setAnalyzer] = useState('hybrid'); // vader, hybrid, llm
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,9 +37,11 @@ function Chat({ user, onLogout }) {
     setMessages(prev => [...prev, userMessage]);
 
     try {
+      const payload = { text: inputText };
+      if (analyzer && analyzer !== 'default') payload.analyzer = analyzer;
       const response = await api.post(
         '/api/analyze',
-        { text: inputText }
+        payload
       );
 
       // Add bot response
@@ -51,7 +54,19 @@ function Chat({ user, onLogout }) {
       setMessages(prev => [...prev, botMessage]);
       setInputText('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to analyze sentiment');
+      // for debugging, log the entire error object
+      console.error('analysis error', err);
+      // If unauthorized, force logout and show a clear message
+      if (err.response?.status === 401) {
+        setError('Session expired or unauthorized. Redirecting to login...');
+        try { onLogout(); } catch (e) { /* ignore */ }
+      } else {
+        setError(
+          err.response?.data?.error ||
+          err.message ||
+          'Failed to analyze sentiment'
+        );
+      }
       // Remove the user message if analysis failed
       setMessages(prev => prev.slice(0, -1));
     } finally {
@@ -149,24 +164,28 @@ function Chat({ user, onLogout }) {
                         <span className="sentiment-label">{message.sentiment.label}</span>
                       </div>
                       <div className="sentiment-scores">
-                        <div className="score-item">
-                          <span className="score-label">Positive:</span>
-                          <span className="score-value">
-                            {(message.sentiment.scores.pos * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="score-item">
-                          <span className="score-label">Neutral:</span>
-                          <span className="score-value">
-                            {(message.sentiment.scores.neu * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="score-item">
-                          <span className="score-label">Negative:</span>
-                          <span className="score-value">
-                            {(message.sentiment.scores.neg * 100).toFixed(1)}%
-                          </span>
-                        </div>
+                        {message.sentiment.scores && (
+                          <>
+                            <div className="score-item">
+                              <span className="score-label">Positive:</span>
+                              <span className="score-value">
+                                {(message.sentiment.scores.pos * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="score-item">
+                              <span className="score-label">Neutral:</span>
+                              <span className="score-value">
+                                {(message.sentiment.scores.neu * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="score-item">
+                              <span className="score-label">Negative:</span>
+                              <span className="score-value">
+                                {(message.sentiment.scores.neg * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </>
+                        )}
                         <div className="score-item compound">
                           <span className="score-label">
                             {message.sentiment.combined_score !== undefined ? 'Combined:' : 'Compound:'}
@@ -179,7 +198,9 @@ function Chat({ user, onLogout }) {
                           <div className="score-item analyzer">
                             <span className="score-label">Analyzer:</span>
                             <span className="score-value analyzer-name">
-                              {message.sentiment.analyzer}
+                              {message.sentiment.provider 
+                                ? `${message.sentiment.provider} (${message.sentiment.model || 'unknown'})`
+                                : message.sentiment.analyzer}
                             </span>
                           </div>
                         )}
@@ -210,6 +231,17 @@ function Chat({ user, onLogout }) {
         </div>
 
         <form onSubmit={handleSubmit} className="input-form">
+          <div className="input-group">
+          <select
+            value={analyzer}
+            onChange={e => setAnalyzer(e.target.value)}
+            disabled={loading}
+            className="analyzer-select"
+          >
+            <option value="hybrid">Hybrid (default)</option>
+            <option value="vader">VADER only</option>
+            <option value="llm">LLM</option>
+          </select>
           <input
             type="text"
             value={inputText}
@@ -218,6 +250,7 @@ function Chat({ user, onLogout }) {
             disabled={loading}
             className="message-input"
           />
+        </div>
           <button type="submit" disabled={loading || !inputText.trim()} className="send-button">
             {loading ? (
               <span className="loading-spinner"></span>

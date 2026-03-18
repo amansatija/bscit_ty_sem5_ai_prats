@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 from dotenv import load_dotenv
 from sentimentAnalysisService import sentiment_service
@@ -13,7 +13,10 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+# Enable CORS for API routes and permit the Authorization header
+CORS(app, resources={r"/api/*": {"origins": "*"}},
+    expose_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization"])
 
 # Configuration
 app.config['MONGO_URI'] = os.getenv('MONGO_URI', 'mongodb://localhost:27017/sentiment_app')
@@ -71,7 +74,7 @@ def register():
             'username': data['username'],
             'email': data['email'],
             'password': hashed_password,
-            'created_at': datetime.utcnow()
+            'created_at': datetime.now(timezone.utc)
         }
         
         result = users_collection.insert_one(user)
@@ -143,16 +146,22 @@ def analyze():
             return jsonify({'error': 'Text is required'}), 400
         
         text = data['text']
-        
-        # Analyze sentiment
-        sentiment_result = sentiment_service.analyze_sentiment(text)
+        analyzer = data.get('analyzer', 'hybrid')  # options: vader, hybrid, llm
+
+        # Perform analysis based on chosen analyzer
+        if analyzer == 'vader':
+            sentiment_result = sentiment_service.analyze_sentiment(text, use_hybrid=False)
+        elif analyzer == 'llm':
+            sentiment_result = sentiment_service.analyze_sentiment(text, show_details=True, use_llm=True)
+        else:
+            sentiment_result = sentiment_service.analyze_sentiment(text)
         
         # Save to chat history
         chat_entry = {
             'user_id': current_user_id,
             'text': text,
             'sentiment': sentiment_result,
-            'timestamp': datetime.utcnow()
+            'timestamp': datetime.now(timezone.utc)
         }
         
         chats_collection.insert_one(chat_entry)
@@ -273,8 +282,14 @@ def analyze_detailed():
         
         text = data['text']
         
-        # Analyze with details
-        sentiment_result = sentiment_service.analyze_sentiment(text, show_details=True)
+        # Determine analyzer
+        analyzer = data.get('analyzer', 'hybrid')
+        if analyzer == 'vader':
+            sentiment_result = sentiment_service.analyze_sentiment(text, show_details=True, use_hybrid=False)
+        elif analyzer == 'llm':
+            sentiment_result = sentiment_service.analyze_sentiment(text, show_details=True, use_llm=True)
+        else:
+            sentiment_result = sentiment_service.analyze_sentiment(text, show_details=True)
         
         # Add insights based on the analysis
         sentiment_result['insights'] = sentiment_service.generate_insights(sentiment_result)
@@ -285,7 +300,7 @@ def analyze_detailed():
                 'user_id': current_user_id,
                 'text': text,
                 'sentiment': sentiment_result,
-                'timestamp': datetime.utcnow()
+                'timestamp': datetime.now(timezone.utc)
             }
             chats_collection.insert_one(chat_entry)
         
@@ -315,7 +330,8 @@ def compare_analyzers():
         text = data['text']
         
         # Use the sentiment service for comparison
-        comparison = sentiment_service.compare_analyzers(text, show_details=True)
+        include_llm = bool(data.get('include_llm', False))
+        comparison = sentiment_service.compare_analyzers(text, show_details=True, include_llm=include_llm)
         
         return jsonify(comparison), 200
         

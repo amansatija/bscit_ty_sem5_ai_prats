@@ -15,10 +15,21 @@ Author: AI Assistant
 Date: November 2025
 """
 
+import os
+import json
+import re
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 from textblob import TextBlob
 import logging
+
+# optional OpenAI LLM support (openai >= 1.0.0)
+try:
+    from openai import OpenAI
+    import httpx
+except ImportError:
+    OpenAI = None
+    httpx = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +47,71 @@ class SentimentAnalysisService:
         self._initialize_nltk()
         self._initialize_textblob()
         self.sia = SentimentIntensityAnalyzer()
+        self.openai_client = None
+        self.openrouter_client = None
+        self._initialize_llm_clients()
         logger.info("SentimentAnalysisService initialized successfully")
+
+    def _initialize_llm_clients(self):
+        """Initialize OpenAI and/or OpenRouter clients based on available API keys.
+
+        Priority:
+        1. OPENAI_API_KEY -> creates OpenAI client for official endpoint
+        2. OPENROUTER_API_KEY -> creates OpenRouter client with custom base_url
+
+        Both clients can coexist, but analyze_sentiment_llm chooses based on
+        which key is present (OpenAI takes priority).
+        """
+        if OpenAI is None:
+            logger.warning("OpenAI python package (openai>=1.0.0) not installed; LLM analysis disabled")
+            return
+
+        ai_key = os.getenv('OPENAI_API_KEY', '').strip()
+        router_key = os.getenv('OPENROUTER_API_KEY', '').strip()
+
+        if ai_key:
+            self.openai_client = OpenAI(api_key=ai_key)
+            logger.info("OpenAI client initialized for LLM sentiment analysis")
+
+        if router_key:
+            router_base_url = os.getenv(
+                'OPENROUTER_API_BASE',
+                'https://openrouter.ai/api/v1'
+            )
+            referer = os.getenv('OPENROUTER_SITE_URL', '').strip()
+            title = os.getenv('OPENROUTER_APP_NAME', '').strip()
+            default_headers = {}
+            if referer:
+                default_headers['HTTP-Referer'] = referer
+            if title:
+                default_headers['X-OpenRouter-Title'] = title
+
+            # Create httpx client explicitly to avoid proxy env var issues
+            http_client = None
+            if httpx is not None:
+                try:
+                    http_client = httpx.Client()
+                except Exception as e:
+                    logger.warning(f"Failed to create custom httpx client: {e}")
+
+            client_kwargs = {
+                'api_key': router_key,
+                'base_url': router_base_url,
+            }
+            if default_headers:
+                client_kwargs['default_headers'] = default_headers
+            if http_client:
+                client_kwargs['http_client'] = http_client
+
+            self.openrouter_client = OpenAI(**client_kwargs)
+            logger.info(
+                "OpenRouter client initialized with base_url=%s%s",
+                router_base_url,
+                " and custom headers" if default_headers else ""
+            )
+
+        if not (ai_key or router_key):
+            logger.warning("Neither OPENAI_API_KEY nor OPENROUTER_API_KEY set; LLM analysis disabled")
     
     def _initialize_nltk(self):
         """Download and initialize NLTK VADER lexicon if needed."""
@@ -59,9 +134,9 @@ class SentimentAnalysisService:
             logger.warning(f"TextBlob initialization warning: {e}")
             # TextBlob will still work, just might download on first real use
     
-    def analyze_sentiment(self, text, show_details=False, use_hybrid=True):
+    def analyze_sentiment(self, text, show_details=False, use_hybrid=True, use_llm=False):
         """
-        Analyze sentiment using VADER with enhanced details
+        Analyze sentiment using configured analyzers.
         
         Args:
             text (str): Text to analyze
@@ -77,6 +152,14 @@ class SentimentAnalysisService:
             Hybrid mode combines VADER and TextBlob for improved accuracy.
         """
         try:
+            # LLM has highest priority if requested
+            if use_llm:
+                try:
+                    return self.analyze_sentiment_llm(text, show_details)
+                except Exception as e:
+                    logger.warning(f"LLM analysis failed, using system-prompt fallback: {e}")
+                    return self.analyze_sentiment_llm_fallback(text, show_details)
+
             if use_hybrid:
                 return self.analyze_sentiment_hybrid(text, show_details)
             
@@ -213,7 +296,7 @@ class SentimentAnalysisService:
             logger.error(f"Error in analyze_sentiment_hybrid: {e}")
             return self._get_fallback_result(text, str(e))
     
-    def compare_analyzers(self, text, show_details=True):
+    def compare_analyzers(self, text, show_details=True, include_llm=False):
         """
         Compare VADER-only vs Hybrid analysis side-by-side
         
@@ -247,7 +330,14 @@ class SentimentAnalysisService:
                     'recommendation': 'Hybrid' if hybrid['confidence'] > vader_only.get('confidence', abs(vader_only.get('compound', 0))) else 'VADER'
                 }
             }
-            
+
+            if include_llm:
+                llm = self.analyze_sentiment(text, show_details=show_details, use_llm=True)
+                comparison['llm'] = llm
+                comparison['comparison']['llm_confidence'] = llm.get('confidence', 0)
+                if llm.get('confidence', 0) > comparison['comparison']['hybrid_confidence']:
+                    comparison['comparison']['recommendation'] = 'LLM'
+
             return comparison
             
         except Exception as e:
@@ -320,6 +410,179 @@ class SentimentAnalysisService:
             'error': error_msg,
             'confidence': 0.0
         }
+
+    def analyze_sentiment_llm(self, text, show_details=False, model=None):
+        """
+        Use an LLM (OpenAI or OpenRouter) to perform multilingual sentiment analysis.
+
+        The model is asked to return a JSON object containing:
+        - label: Positive/Negative/Neutral
+        - confidence: float 0-1
+        - language: detected language (English/Hindi/Marathi/Hinglish/other)
+
+        Provider selection is automatic: if `OPENAI_API_KEY` is set the
+        official OpenAI endpoint is used; otherwise if `OPENROUTER_API_KEY`
+        exists the request is sent through OpenRouter with model
+        `openai/gpt-oss-20b:free` by default.
+
+        Args:
+            text (str): Text to analyze
+            show_details (bool): If true, request extra detail from the LLM
+            model (str): Optional model override (e.g. "gpt-4", "gpt-3.5-turbo",
+                         or OpenRouter model identifier)  
+        Returns:
+            dict: Sentiment result similar to other analyzers.
+        """
+        # Determine which client to use: prefer OpenAI, fallback to OpenRouter
+        client = self.openai_client or self.openrouter_client
+        if not client:
+            logger.warning("LLM analysis requested but no LLM client configured; falling back to hybrid")
+            return self.analyze_sentiment(text, show_details=show_details, use_hybrid=True)
+
+        # Determine which provider is active
+        is_openrouter = (self.openai_client is None) and (self.openrouter_client is not None)
+
+        # choose model based on which key/provider is configured
+        if not model:
+            if is_openrouter:
+                # using OpenRouter; allow override via OPENROUTER_MODEL
+                model = os.getenv('OPENROUTER_MODEL', 'openai/gpt-oss-20b:free')
+            else:
+                # using OpenAI; allow override via OPENAI_MODEL
+                model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+
+        provider = "OpenRouter" if is_openrouter else "OpenAI"
+        allow_system_prompt = os.getenv('LLM_ALLOW_SYSTEM_PROMPT', 'true').lower() != 'false'
+
+        try:
+            return self._invoke_llm_request(
+                client=client,
+                provider=provider,
+                model=model,
+                text=text,
+                show_details=show_details,
+                use_system_prompt=allow_system_prompt
+            )
+        except Exception as e:
+            if allow_system_prompt and self._is_system_prompt_error(e):
+                logger.warning(
+                    "Provider rejected system prompts (model=%s); retrying with user-only instructions",
+                    model
+                )
+                try:
+                    return self._invoke_llm_request(
+                        client=client,
+                        provider=provider,
+                        model=model,
+                        text=text,
+                        show_details=show_details,
+                        use_system_prompt=False
+                    )
+                except Exception as retry_error:
+                    logger.error(f"LLM retry without system prompt failed: {retry_error}")
+                    return self._get_fallback_result(text, str(retry_error))
+
+            logger.error(f"Error in analyze_sentiment_llm: {e}")
+            return self._get_fallback_result(text, str(e))
+
+    def _invoke_llm_request(self, client, provider, model, text, show_details, use_system_prompt=True):
+        logger.info(
+            "LLM request sent via %s with model=%s (system_prompt=%s)",
+            provider,
+            model,
+            'enabled' if use_system_prompt else 'disabled'
+        )
+
+        messages = self._build_llm_messages(text, show_details, use_system_prompt)
+
+        response_kwargs = {
+            'model': model,
+            'messages': messages,
+            'temperature': 0.0,
+        }
+
+        enforce_json = os.getenv('LLM_ENFORCE_JSON', 'true').lower() != 'false'
+        if enforce_json:
+            response_kwargs['response_format'] = {'type': 'json_object'}
+
+        response = client.chat.completions.create(**response_kwargs)
+        content = response.choices[0].message.content or ''
+
+        parsed = self._parse_llm_response(content)
+
+        result = {
+            'label': parsed.get('label', 'Neutral'),
+            'emoji': '😊' if parsed.get('label', '').lower().startswith('pos') else ('😡' if parsed.get('label', '').lower().startswith('neg') else '😐'),
+            'confidence': parsed.get('confidence', 0),
+            'language': parsed.get('language', 'unknown'),
+            'analyzer': f'LLM ({provider} / {model})',
+            'provider': provider,
+            'model': model,
+            'raw': parsed,
+        }
+        if show_details and 'reason' in parsed:
+            result['details'] = {'reason': parsed['reason']}
+        return result
+
+    def _build_llm_messages(self, text, show_details, use_system_prompt=True):
+        """Create chat messages that force the model to emit raw JSON only."""
+        detail_clause = (
+            "Include a concise 'reason' field explaining the sentiment." if show_details else "Do not include a 'reason' field unless it is necessary."
+        )
+        system_prompt = (
+            "You are a strict sentiment analysis engine. "
+            "Always respond with a single JSON object and NOTHING else. "
+            "Never wrap the JSON in code fences, markdown, prose, or commentary."
+        )
+        schema_prompt = (
+            "Output JSON with keys: label (Positive/Negative/Neutral), confidence (number 0-1), "
+            "language (English/Hindi/Marathi/Hinglish/Other). "
+            f"{detail_clause}"
+        )
+        user_prompt = (
+            f"Text to analyze: {str(text)}"
+        )
+
+        if use_system_prompt:
+            return [
+                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": schema_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
+        combined_prompt = (
+            f"{system_prompt} {schema_prompt}\n{user_prompt}"
+        )
+        return [{"role": "user", "content": combined_prompt}]
+
+    def _parse_llm_response(self, content):
+        """Strip any formatting and parse JSON content from the LLM response."""
+        cleaned = content.strip()
+
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?", "", cleaned, flags=re.IGNORECASE).strip()
+            cleaned = re.sub(r"```$", "", cleaned).strip()
+
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    pass
+
+        logger.warning("Failed to parse JSON from LLM: %s", content)
+        raise ValueError("LLM response was not valid JSON")
+
+    @staticmethod
+    def _is_system_prompt_error(error):
+        message = str(error).lower()
+        return (
+            'developer instruction is not enabled' in message
+            or 'system instruction is not enabled' in message
+        )
     
     def get_test_samples(self):
         """
@@ -364,6 +627,31 @@ class SentimentAnalysisService:
                 'text': "I absolutely hated this film. Boring, terrible acting, awful plot.",
                 'expected': 'Negative',
                 'note': 'Strong negative sentiment'
+            },
+            # multilingual examples for LLM evaluation
+            {
+                'id': 7,
+                'text': "यह फिल्म बहुत अच्छी थी, मुझे बहुत पसंद आई।",
+                'expected': 'Positive',
+                'note': 'Hindi positive review'
+            },
+            {
+                'id': 8,
+                'text': "फिल्म बेकार थी, बिलकुल भी मज़ा नहीं आया।",
+                'expected': 'Negative',
+                'note': 'Hindi negative review'
+            },
+            {
+                'id': 9,
+                'text': "अभिनय चांगला नव्हता, पण कथा ठीक होती.",
+                'expected': 'Negative',
+                'note': 'Marathi mixed sentiment'
+            },
+            {
+                'id': 10,
+                'text': "movie mast hoti yaar, full paisa vasool!",
+                'expected': 'Positive',
+                'note': 'Hinglish praising the film'
             }
         ]
     

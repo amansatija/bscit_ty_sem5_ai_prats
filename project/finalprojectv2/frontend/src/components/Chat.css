@@ -286,6 +286,19 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.input-group {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+}
+
+.analyzer-select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+}
 .message-input {
   flex: 1;
   padding: 14px 20px;

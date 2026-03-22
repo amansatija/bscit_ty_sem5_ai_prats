@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LifeBuoy, Mail, User, MessageSquare } from 'lucide-react';
+import { LifeBuoy, Mail, User, MessageSquare, Phone, Github } from 'lucide-react';
 import config from '../config';
 import './SupportContact.css';
 
@@ -111,6 +111,29 @@ function SupportContact() {
               <div className="support-info">
                 <h3>Get in touch</h3>
                 <p>Send us your query and we’ll get back to you.</p>
+                <div className="support-contact-list">
+                  <a className="support-contact-item" href="mailto:ameenramali@hotmail.com">
+                    <Mail size={16} />
+                    <span>ameenramali@hotmail.com</span>
+                  </a>
+                  <a className="support-contact-item" href="tel:+918652492068">
+                    <Phone size={16} />
+                    <span>+91-8652492068</span>
+                  </a>
+                  <a
+                    className="support-contact-item"
+                    href="https://github.com/100TAlaRic99"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Github size={16} />
+                    <span>github.com/100TAlaRic99</span>
+                  </a>
+                  <div className="support-contact-item">
+                    <User size={16} />
+                    <span>Facebook: Ameen Ramali</span>
+                  </div>
+                </div>
                 <div className="support-hints">
                   <div className="support-hint">
                     <Mail size={16} />
@@ -127,7 +150,7 @@ function SupportContact() {
                 <div className="support-field">
                   <label htmlFor="support_name">
                     <User size={16} />
-                    Name
+                    Your Name
                   </label>
                   <input
                     ref={nameInputRef}
@@ -153,6 +176,9 @@ function SupportContact() {
                     required
                     disabled={status === 'sending'}
                   />
+                  <p className="support-description">
+                    This will help us respond to your query via an email.
+                  </p>
                 </div>
 
                 <div className="support-field">
@@ -168,6 +194,7 @@ function SupportContact() {
                     required
                     disabled={status === 'sending'}
                   />
+                  <p className="support-description">What would you like to discuss?</p>
                 </div>
 
                 {(status === 'success' || status === 'error') && (

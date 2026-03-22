@@ -99,6 +99,31 @@
   line-height: 1.4;
 }
 
+.support-contact-list {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.support-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #374151;
+  font-size: 13px;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #e5e7eb;
+}
+
+a.support-contact-item:hover {
+  background: white;
+  border-color: #d1d5db;
+}
+
 .support-hints {
   margin-top: 16px;
   display: flex;
@@ -129,6 +154,13 @@
   color: #374151;
   font-size: 13px;
   margin-bottom: 8px;
+}
+
+.support-description {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .support-field input,
